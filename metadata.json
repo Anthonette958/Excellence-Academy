@@ -1,0 +1,6 @@
+{
+  "name": "Excellence Academy - School Portal",
+  "description": "Official school portal for Excellence Academy featuring password-only authentication, role-based dashboards for students, faculty, parents, and administrators, and persistent login audit recording.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
