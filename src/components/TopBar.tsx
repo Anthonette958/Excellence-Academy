@@ -42,8 +42,8 @@ export const TopBar: React.FC<TopBarProps> = ({
       case 'parent':
         return [
           { id: 'overview', label: 'Ward Summary' },
+          { id: 'tuition', label: 'School Fees & Tuition' },
           { id: 'grades', label: 'Academic Report' },
-          { id: 'tuition', label: 'Tuition & Fees' },
           { id: 'schedule', label: 'Daily Timetable' },
           { id: 'bulletin', label: 'Academy Notices' },
         ];
@@ -51,7 +51,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         return [
           { id: 'overview', label: 'Administration' },
           { id: 'vault', label: 'Stored Accounts Vault' },
-          { id: 'create-student', label: '+ New Student Account' },
+          { id: 'create-account', label: '+ Create Account' },
           { id: 'directory', label: 'Academy Directory' },
           { id: 'announcements', label: 'Broadcasts' },
         ];

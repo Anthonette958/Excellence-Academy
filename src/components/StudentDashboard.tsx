@@ -3,7 +3,6 @@ import { UserAccount, Assignment, ScheduleItem } from '../types/portal';
 import {
   STUDENT_COURSES,
   WEEKLY_SCHEDULE,
-  ASSIGNMENTS as INITIAL_ASSIGNMENTS,
   ANNOUNCEMENTS,
   ATTENDANCE_DATA,
 } from '../data/mockData';
@@ -26,40 +25,39 @@ interface StudentDashboardProps {
   currentUser: UserAccount;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  assignments: Assignment[];
+  onToggleAssignmentStatus: (assignmentId: string) => void;
 }
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   currentUser,
   activeTab,
   setActiveTab,
+  assignments,
+  onToggleAssignmentStatus,
 }) => {
   const [selectedDay, setSelectedDay] = useState<
     'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'
   >('Monday');
-  const [assignments, setAssignments] = useState<Assignment[]>(INITIAL_ASSIGNMENTS);
   const [submittedToast, setSubmittedToast] = useState<string | null>(null);
 
   const gpa = calculateGPA(STUDENT_COURSES);
 
-  const handleToggleSubmission = (assignmentId: string) => {
-    setAssignments((prev) =>
-      prev.map((a) => {
-        if (a.id === assignmentId) {
-          const nextStatus = a.status === 'Submitted' ? 'Pending' : 'Submitted';
-          setSubmittedToast(
-            nextStatus === 'Submitted'
-              ? `"${a.title}" marked as submitted!`
-              : `Submission withdrawn for "${a.title}".`
-          );
-          setTimeout(() => setSubmittedToast(null), 3500);
-          return { ...a, status: nextStatus };
-        }
-        return a;
-      })
+  const handleToggle = (assignmentId: string) => {
+    const target = assignments.find((a) => a.id === assignmentId);
+    if (!target) return;
+    const nextStatus = target.status === 'Submitted' ? 'Pending' : 'Submitted';
+    onToggleAssignmentStatus(assignmentId);
+    setSubmittedToast(
+      nextStatus === 'Submitted'
+        ? `"${target.title}" successfully marked as submitted!`
+        : `Submission withdrawn for "${target.title}".`
     );
+    setTimeout(() => setSubmittedToast(null), 3500);
   };
 
   const daySchedule = WEEKLY_SCHEDULE.filter((item) => item.day === selectedDay);
+  const pendingCount = assignments.filter((a) => a.status === 'Pending').length;
 
   return (
     <div className="space-y-6">
@@ -93,8 +91,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setActiveTab('assignments')}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold border border-purple-400/30 transition-colors shadow-xs"
+            >
+              Assignments ({assignments.length})
+            </button>
+            <button
               onClick={() => setActiveTab('grades')}
-              className="px-4 py-2 bg-purple-600/80 hover:bg-purple-600 text-white rounded-xl text-xs font-semibold border border-purple-400/30 transition-colors shadow-xs"
+              className="px-4 py-2 bg-purple-700/80 hover:bg-purple-600 text-white rounded-xl text-xs font-semibold border border-purple-400/30 transition-colors shadow-xs"
             >
               View Gradebook
             </button>
@@ -136,12 +140,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <div>
             <span className="text-[11px] text-purple-300 font-medium block">Pending Tasks</span>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-2xl font-bold font-serif tabular-nums text-white">
-                {assignments.filter((a) => a.status === 'Pending').length}
+              <span className="text-2xl font-bold font-serif tabular-nums text-purple-200">
+                {pendingCount}
               </span>
-              <span className="text-xs text-purple-300">Due this week</span>
+              <span className="text-xs text-purple-300">Active</span>
             </div>
-            <span className="text-[10px] text-purple-300/80">Physics & Calculus</span>
+            <span className="text-[10px] text-purple-300/80">Live Faculty Assignments</span>
           </div>
         </div>
       </div>
@@ -214,46 +218,54 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             </div>
           </div>
 
-          {/* Urgent Deadlines & Announcements */}
+          {/* Urgent Deadlines & Faculty Assigned Work */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white rounded-2xl border border-purple-100 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-purple-100">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-purple-700" />
                   <h3 className="font-serif font-bold text-base text-purple-950">
-                    Upcoming Assignments
+                    Faculty Assigned Work
                   </h3>
                 </div>
                 <button
                   onClick={() => setActiveTab('assignments')}
                   className="text-xs font-semibold text-purple-700 hover:text-purple-900"
                 >
-                  All Tasks →
+                  All ({assignments.length}) →
                 </button>
               </div>
 
               <div className="space-y-2.5">
-                {assignments.slice(0, 3).map((asg) => (
+                {assignments.slice(0, 4).map((asg) => (
                   <div
                     key={asg.id}
                     className="p-3 rounded-xl border border-purple-100/70 bg-purple-50/20 flex items-start justify-between gap-3"
                   >
                     <div>
-                      <h4 className="text-xs font-bold text-purple-950 leading-snug">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold font-mono text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
+                          {asg.course}
+                        </span>
+                        {asg.assignedBy && (
+                          <span className="text-[10px] text-slate-400">by {asg.assignedBy}</span>
+                        )}
+                      </div>
+                      <h4 className="text-xs font-bold text-purple-950 leading-snug mt-1">
                         {asg.title}
                       </h4>
                       <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
-                        <span>{asg.course}</span>
-                        <span>·</span>
                         <span className="font-semibold text-purple-800">Due {asg.dueDate}</span>
+                        <span>·</span>
+                        <span className="font-mono text-slate-500">{asg.pointsPossible} pts</span>
                       </div>
                     </div>
                     <button
-                      onClick={() => handleToggleSubmission(asg.id)}
+                      onClick={() => handleToggle(asg.id)}
                       className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
                         asg.status === 'Submitted'
                           ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-purple-800 text-white hover:bg-purple-900'
+                          : 'bg-purple-800 text-white hover:bg-purple-900 shadow-2xs'
                       }`}
                     >
                       {asg.status === 'Submitted' ? 'Submitted ✓' : 'Submit'}
@@ -407,7 +419,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       )}
 
-      {/* Tab: Assignments */}
+      {/* Tab: Assignments (Dynamic shared assignments) */}
       {activeTab === 'assignments' && (
         <div className="bg-white rounded-2xl border border-purple-100 p-6 sm:p-8 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-purple-100">
@@ -416,7 +428,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 Coursework & Submissions
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Manage active projects, homework deliverables, and grading status
+                Tasks assigned by faculty members are updated here in real time.
               </p>
             </div>
             <div className="text-xs text-slate-500">
@@ -424,7 +436,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <span className="font-bold text-purple-900 tabular-nums">
                 {assignments.filter((a) => a.status === 'Graded' || a.status === 'Submitted').length}
               </span>{' '}
-              / {assignments.length}
+              / {assignments.length} total tasks
             </div>
           </div>
 
@@ -435,12 +447,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 className="p-5 rounded-xl border border-purple-100 bg-purple-50/20 hover:bg-purple-50/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-semibold text-purple-700">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-semibold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded">
                       {asg.course}
                     </span>
                     <span className="text-slate-300">·</span>
                     <span className="text-xs text-slate-500">Due {asg.dueDate}</span>
+                    {asg.assignedBy && (
+                      <>
+                        <span className="text-slate-300">·</span>
+                        <span className="text-xs text-purple-900 font-medium">
+                          Assigned by {asg.assignedBy}
+                        </span>
+                      </>
+                    )}
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
                         asg.status === 'Graded'
@@ -471,7 +491,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                   </div>
 
                   <button
-                    onClick={() => handleToggleSubmission(asg.id)}
+                    onClick={() => handleToggle(asg.id)}
                     className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
                       asg.status === 'Submitted'
                         ? 'bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-200'

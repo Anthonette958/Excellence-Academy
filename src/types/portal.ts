@@ -65,6 +65,8 @@ export interface Assignment {
   pointsPossible: number;
   pointsEarned?: number;
   description: string;
+  assignedBy?: string;
+  assignedDate?: string;
 }
 
 export interface Announcement {
@@ -96,4 +98,17 @@ export interface TuitionInvoice {
   dueDate: string;
   status: 'Paid in Full' | 'Partial' | 'Pending';
   items: { description: string; amount: number }[];
+}
+
+export interface FeeReceipt {
+  id: string;
+  transactionRef: string;
+  invoiceId: string;
+  term: string;
+  amountPaid: number;
+  date: string;
+  paymentMethod: string;
+  payerName: string;
+  remainingBalance: number;
+  status: 'Confirmed' | 'Settled';
 }

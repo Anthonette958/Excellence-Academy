@@ -6,6 +6,7 @@ import {
   Announcement,
   AttendanceSummary,
   TuitionInvoice,
+  FeeReceipt,
   LoginRecord,
 } from '../types/portal';
 
@@ -345,17 +346,32 @@ export const TUITION_INVOICE: TuitionInvoice = {
   id: 'INV-2026-T1',
   term: 'Fall Term 2026 / Academic Session',
   totalAmount: 14850,
-  paidAmount: 14850,
-  dueAmount: 0,
-  dueDate: 'Sep 15, 2026',
-  status: 'Paid in Full',
+  paidAmount: 10600,
+  dueAmount: 4250,
+  dueDate: 'Nov 15, 2026',
+  status: 'Partial',
   items: [
-    { description: 'Upper School Academic Tuition (Term 1)', amount: 12500 },
-    { description: 'Advanced Science & Robotics Laboratory Fee', amount: 1200 },
-    { description: 'Athletic, Orchestra & Extracurricular Facilities', amount: 650 },
-    { description: 'Technology & Campus Portal Access License', amount: 500 },
+    { description: 'Upper School Academic Tuition (Term 1 Balance)', amount: 2600 },
+    { description: 'Advanced Science & Robotics Laboratory Fee', amount: 850 },
+    { description: 'Athletic, Orchestra & Extracurricular Facilities', amount: 450 },
+    { description: 'Campus Technology & Digital Learning Portal Access', amount: 350 },
   ],
 };
+
+export const INITIAL_RECEIPTS: FeeReceipt[] = [
+  {
+    id: 'rcp_init_01',
+    transactionRef: 'EA-PAY-2026-8819',
+    invoiceId: 'INV-2026-T1',
+    term: 'Fall Term 2026',
+    amountPaid: 10600,
+    date: 'Sep 10, 2026',
+    paymentMethod: 'Electronic Bank Transfer (ACH ··4192)',
+    payerName: 'Sarah Jenkins',
+    remainingBalance: 4250,
+    status: 'Confirmed',
+  },
+];
 
 // Faculty roster for Marcus Vance's class
 export const FACULTY_ROSTER = [

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { UserAccount, LoginRecord } from '../types/portal';
+import { UserAccount, LoginRecord, UserRole } from '../types/portal';
 import { ACADEMY_DIRECTORY } from '../data/mockData';
-import { isUsernameTaken, createStudentAccount, createLoginRecord } from '../utils/auth';
+import { isUsernameTaken, createAccount, createLoginRecord } from '../utils/auth';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -24,6 +24,10 @@ import {
   Sparkles,
   ArrowRight,
   Shield,
+  GraduationCap,
+  Briefcase,
+  HeartHandshake,
+  RefreshCw,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -34,7 +38,8 @@ interface AdminDashboardProps {
   onClearAuditRecords: () => void;
   onOpenAuditLogs: () => void;
   accounts: UserAccount[];
-  onCreateStudent: (newAccount: UserAccount) => void;
+  onCreateAccount: (newAccount: UserAccount) => void;
+  onCreateStudent?: (newAccount: UserAccount) => void;
   onRecordLogin: (record: LoginRecord) => void;
   onSwitchAccount: (account: UserAccount) => void;
   onUpdateAccountPassword?: (accountId: string, newPassword: string) => void;
@@ -48,6 +53,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onClearAuditRecords,
   onOpenAuditLogs,
   accounts,
+  onCreateAccount,
   onCreateStudent,
   onRecordLogin,
   onSwitchAccount,
@@ -55,6 +61,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [directorySearch, setDirectorySearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('All');
+  const [vaultRoleFilter, setVaultRoleFilter] = useState<string>('All');
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcastSuccess, setBroadcastSuccess] = useState(false);
@@ -63,46 +70,87 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Admin password change state
+  // Admin master password change state
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false);
 
-  // New Student Creation Form state
-  const [studentName, setStudentName] = useState('');
-  const [studentUsername, setStudentUsername] = useState('');
-  const [studentPassword, setStudentPassword] = useState('');
-  const [studentIdNumber, setStudentIdNumber] = useState(
+  // Multi-Role Account Creation Form state
+  const [selectedRole, setSelectedRole] = useState<UserRole>('student');
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [idNumber, setIdNumber] = useState(
     `EA-2026-${Math.floor(1000 + Math.random() * 9000)}`
   );
+  // Student-specific
   const [studentGrade, setStudentGrade] = useState('Grade 11 · STEM Honors');
-  const [studentEmail, setStudentEmail] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createdStudent, setCreatedStudent] = useState<UserAccount | null>(null);
+  // Faculty-specific
+  const [facultyTitle, setFacultyTitle] = useState('Instructor of Advanced Sciences');
+  const [facultyDept, setFacultyDept] = useState('Department of Natural Sciences & Engineering');
+  // Parent-specific
+  const [wardName, setWardName] = useState('Maya Jenkins');
+  const [wardGrade, setWardGrade] = useState('Grade 10 · Sophomore Honors');
+  const [parentRelationship, setParentRelationship] = useState('Parent / Legal Guardian');
+  const [parentPhone, setParentPhone] = useState('+1 (555) 439-8821');
 
-  // Handle student name change to auto-suggest username and email
-  const handleStudentNameChange = (name: string) => {
-    setStudentName(name);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createdAccount, setCreatedAccount] = useState<UserAccount | null>(null);
+
+  // Handle role switch to auto-generate appropriate ID format
+  const handleRoleChange = (role: UserRole) => {
+    setSelectedRole(role);
     setCreateError(null);
-    if (!studentUsername || studentUsername.includes('.')) {
-      const parts = name.trim().toLowerCase().split(/\s+/);
-      if (parts.length >= 2) {
-        const suggestedUser = `${parts[0]}.${parts[parts.length - 1]}`;
-        setStudentUsername(suggestedUser);
-        setStudentEmail(`${suggestedUser}@excellence.edu`);
-      } else if (parts.length === 1 && parts[0]) {
-        setStudentUsername(parts[0]);
-        setStudentEmail(`${parts[0]}@excellence.edu`);
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    if (role === 'student') {
+      setIdNumber(`EA-2026-${rand}`);
+      if (fullName) setEmail(`${username || 'student'}@excellence.edu`);
+    } else if (role === 'faculty') {
+      setIdNumber(`FAC-${rand}`);
+      if (fullName) setEmail(`${username || 'faculty'}@excellence.edu`);
+    } else if (role === 'parent') {
+      setIdNumber(`PAR-${rand}`);
+      if (fullName) setEmail(`${username || 'parent'}@familymail.com`);
+    }
+  };
+
+  // Handle name change to auto-suggest username and email
+  const handleFullNameChange = (name: string) => {
+    setFullName(name);
+    setCreateError(null);
+    const parts = name.trim().toLowerCase().split(/\s+/);
+    let suggestedUser = '';
+    if (parts.length >= 2) {
+      suggestedUser = `${parts[0]}.${parts[parts.length - 1]}`;
+    } else if (parts.length === 1 && parts[0]) {
+      suggestedUser = parts[0];
+    }
+
+    if (suggestedUser) {
+      setUsername(suggestedUser);
+      if (selectedRole === 'parent') {
+        setEmail(`${suggestedUser}@familymail.com`);
+      } else {
+        setEmail(`${suggestedUser}@excellence.edu`);
       }
     }
   };
 
-  const handleCreateStudentSubmit = (e: React.FormEvent) => {
+  const handleGeneratePassword = () => {
+    const prefixes = ['Excellence', 'Academy', 'Scholar', 'Portal', 'Campus'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const randNum = Math.floor(100 + Math.random() * 900);
+    const generated = `${prefix}Pass${randNum}!`;
+    setPassword(generated);
+  };
+
+  const handleCreateAccountSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCreateError(null);
 
-    const cleanUsername = studentUsername.trim().toLowerCase();
+    const cleanUsername = username.trim().toLowerCase();
     if (!cleanUsername) {
-      setCreateError('Please enter a username for the student.');
+      setCreateError('Please enter a username for the new account.');
       return;
     }
 
@@ -113,36 +161,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    if (!studentPassword || studentPassword.length < 6) {
-      setCreateError('Student password must be at least 6 characters long.');
+    if (!password || password.length < 6) {
+      setCreateError('Password must be at least 6 characters long.');
       return;
     }
 
-    const newStudent = createStudentAccount({
-      fullName: studentName,
+    let titleOrGrade = studentGrade;
+    let department = 'Upper School Academic Division';
+
+    if (selectedRole === 'faculty') {
+      titleOrGrade = facultyTitle.trim() || 'Faculty Member';
+      department = facultyDept.trim() || 'Academic Faculty Department';
+    } else if (selectedRole === 'parent') {
+      titleOrGrade = parentRelationship.trim() || 'Parent / Guardian';
+      department = 'Parent & Guardian Association';
+    }
+
+    const newAccount = createAccount({
+      role: selectedRole,
+      fullName: fullName.trim(),
       username: cleanUsername,
-      password: studentPassword,
-      studentId: studentIdNumber,
-      grade: studentGrade,
-      email: studentEmail || `${cleanUsername}@excellence.edu`,
+      password: password.trim(),
+      studentOrStaffId: idNumber.trim(),
+      titleOrGrade,
+      department,
+      email: email.trim() || `${cleanUsername}@excellence.edu`,
+      wardName: selectedRole === 'parent' ? wardName.trim() : undefined,
+      wardGrade: selectedRole === 'parent' ? wardGrade.trim() : undefined,
+      phone: selectedRole === 'parent' ? parentPhone.trim() : undefined,
     });
 
-    onCreateStudent(newStudent);
-    setCreatedStudent(newStudent);
+    if (onCreateAccount) {
+      onCreateAccount(newAccount);
+    } else if (onCreateStudent) {
+      onCreateStudent(newAccount);
+    }
 
-    // Record an audit log for student creation
+    setCreatedAccount(newAccount);
+
+    // Record an audit log for multi-role account creation
     const adminActionRecord = createLoginRecord(currentUser.username, 'Granted', {
       account: currentUser,
-      failureReason: `Admin provisioned new student account: ${newStudent.username} (${newStudent.studentOrStaffId})`,
+      failureReason: `Admin provisioned new ${selectedRole} account: ${newAccount.username} (${newAccount.studentOrStaffId})`,
     });
     onRecordLogin(adminActionRecord);
 
-    // Reset form fields with new random ID
-    setStudentName('');
-    setStudentUsername('');
-    setStudentPassword('');
-    setStudentEmail('');
-    setStudentIdNumber(`EA-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+    // Reset form fields
+    setFullName('');
+    setUsername('');
+    setPassword('');
+    setEmail('');
+    handleRoleChange(selectedRole);
   };
 
   const togglePasswordVisibility = (accId: string) => {
@@ -153,7 +222,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleCopyCredentials = (acc: UserAccount) => {
-    const text = `Username: ${acc.username}\nPassword: ${acc.password}`;
+    const text = `Excellence Academy Portal Credentials:\nRole: ${acc.role.toUpperCase()}\nName: ${acc.fullName}\nUsername: ${acc.username}\nPassword: ${acc.password}`;
     navigator.clipboard?.writeText(text);
     setCopiedId(acc.id);
     setTimeout(() => setCopiedId(null), 2500);
@@ -171,6 +240,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       item.email.toLowerCase().includes(q) ||
       item.division.toLowerCase().includes(q)
     );
+  });
+
+  // Filter vault accounts
+  const filteredVaultAccounts = accounts.filter((acc) => {
+    if (vaultRoleFilter === 'All') return true;
+    return acc.role === vaultRoleFilter.toLowerCase();
   });
 
   const grantedCount = auditRecords.filter((r) => r.status === 'Granted').length;
@@ -200,6 +275,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setTimeout(() => setPasswordChangeSuccess(false), 4000);
     }
   };
+
+  const isAccountCreationTab =
+    activeTab === 'create-account' || activeTab === 'create-student';
 
   return (
     <div className="space-y-6">
@@ -231,11 +309,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setActiveTab('create-student')}
+              onClick={() => setActiveTab('create-account')}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors"
             >
               <UserPlus className="w-4 h-4" />
-              <span>Create Student</span>
+              <span>Create Account (Student/Parent/Faculty)</span>
             </button>
             <button
               onClick={() => setActiveTab('vault')}
@@ -300,12 +378,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Vault Role Filters */}
+              <div className="flex items-center gap-1 p-1 bg-purple-100/60 rounded-lg">
+                {['All', 'Student', 'Faculty', 'Parent'].map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setVaultRoleFilter(role)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+                      vaultRoleFilter === role
+                        ? 'bg-white text-purple-950 shadow-xs'
+                        : 'text-purple-800 hover:text-purple-950'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+
               <button
-                onClick={() => setActiveTab('create-student')}
+                onClick={() => setActiveTab('create-account')}
                 className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-800 hover:bg-purple-900 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
               >
                 <UserPlus className="w-3.5 h-3.5" />
-                <span>+ Register New Student</span>
+                <span>+ Create Account</span>
               </button>
             </div>
           </div>
@@ -352,7 +448,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {accounts.map((acc) => {
+            {filteredVaultAccounts.map((acc) => {
               const isRevealed = !!visiblePasswords[acc.id];
               const isCopied = copiedId === acc.id;
 
@@ -367,7 +463,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <span className="font-bold text-sm text-purple-950 font-serif">
                           {acc.fullName}
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-purple-200/80 text-purple-900">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                            acc.role === 'admin'
+                              ? 'bg-rose-100 text-rose-900'
+                              : acc.role === 'faculty'
+                              ? 'bg-indigo-100 text-indigo-900'
+                              : acc.role === 'parent'
+                              ? 'bg-emerald-100 text-emerald-900'
+                              : 'bg-purple-200/80 text-purple-900'
+                          }`}
+                        >
                           {acc.role}
                         </span>
                       </div>
@@ -379,6 +485,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <p className="text-xs text-slate-600 mt-1">
                       {acc.titleOrGrade}
                     </p>
+
+                    {acc.wardName && (
+                      <p className="text-[11px] text-purple-800 mt-0.5 font-medium">
+                        Ward: {acc.wardName} ({acc.wardGrade})
+                      </p>
+                    )}
 
                     {/* Credentials Box */}
                     <div className="mt-3 p-3 bg-white rounded-lg border border-purple-100 space-y-1.5 font-mono text-xs">
@@ -445,37 +557,100 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* Tab: Create New Student Account */}
-      {activeTab === 'create-student' && (
+      {/* Tab: Multi-Role Account Creation (Student, Parent, Faculty) */}
+      {isAccountCreationTab && (
         <div className="bg-white rounded-2xl border border-purple-100 p-6 sm:p-8 shadow-xs space-y-6">
           <div className="pb-4 border-b border-purple-100">
             <div className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-purple-700" />
               <h2 className="text-xl font-bold font-serif text-purple-950">
-                Enroll New Student & Provision Portal Credentials
+                Provision New Academy Account (Multi-Role)
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Role: Registrar / Administrator. New student accounts are immediately authenticated by the password-only engine.
+              Registrar / Administrator Console. Create accounts for Students, Parents/Guardians, or Faculty members. New accounts are immediately authenticated by the password-only engine.
             </p>
           </div>
 
+          {/* Role Selection Tabs */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              1. Select Account Role
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
+              <button
+                type="button"
+                onClick={() => handleRoleChange('student')}
+                className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                  selectedRole === 'student'
+                    ? 'bg-purple-100/80 border-purple-600 text-purple-950 shadow-xs'
+                    : 'bg-purple-50/20 border-purple-200 text-slate-600 hover:bg-purple-50'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-purple-200 text-purple-800 flex items-center justify-center shrink-0">
+                  <GraduationCap className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-bold">Student Account</div>
+                  <div className="text-[10px] text-slate-500">Coursework & Grades</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRoleChange('faculty')}
+                className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                  selectedRole === 'faculty'
+                    ? 'bg-indigo-100/80 border-indigo-600 text-indigo-950 shadow-xs'
+                    : 'bg-purple-50/20 border-purple-200 text-slate-600 hover:bg-purple-50'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-indigo-200 text-indigo-800 flex items-center justify-center shrink-0">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-bold">Faculty Account</div>
+                  <div className="text-[10px] text-slate-500">Assign Tasks & Roster</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRoleChange('parent')}
+                className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                  selectedRole === 'parent'
+                    ? 'bg-emerald-100/80 border-emerald-600 text-emerald-950 shadow-xs'
+                    : 'bg-purple-50/20 border-purple-200 text-slate-600 hover:bg-purple-50'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center shrink-0">
+                  <HeartHandshake className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-bold">Parent / Guardian</div>
+                  <div className="text-[10px] text-slate-500">Pay Fees & Reports</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Success Banner if just created */}
-          {createdStudent && (
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 animate-fadeIn">
+          {createdAccount && (
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 animate-fadeIn max-w-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-sm text-emerald-900">
-                      Student Account Provisioned Successfully!
+                      {createdAccount.role.toUpperCase()} Account Provisioned Successfully!
                     </h3>
                     <p className="text-xs text-emerald-800 mt-0.5">
-                      New student <span className="font-bold">{createdStudent.fullName}</span> has been enrolled with Student ID <span className="font-mono">{createdStudent.studentOrStaffId}</span>.
+                      <span className="font-bold">{createdAccount.fullName}</span> has been enrolled with ID{' '}
+                      <span className="font-mono font-bold">{createdAccount.studentOrStaffId}</span>.
                     </p>
-                    <div className="mt-2.5 p-2.5 bg-white/80 rounded-lg border border-emerald-200 text-xs font-mono space-y-1">
-                      <div><span className="font-sans text-slate-500">Username:</span> {createdStudent.username}</div>
-                      <div><span className="font-sans text-slate-500">Password:</span> {createdStudent.password}</div>
+                    <div className="mt-2.5 p-2.5 bg-white/90 rounded-lg border border-emerald-200 text-xs font-mono space-y-1">
+                      <div><span className="font-sans text-slate-500">Username:</span> {createdAccount.username}</div>
+                      <div><span className="font-sans text-slate-500">Password:</span> {createdAccount.password}</div>
                     </div>
                   </div>
                 </div>
@@ -483,17 +658,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex flex-col gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => onSwitchAccount(createdStudent)}
+                    onClick={() => onSwitchAccount(createdAccount)}
                     className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold shadow-xs"
                   >
-                    Test Student Login →
+                    Test Sign In →
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('vault')}
+                    onClick={() => handleCopyCredentials(createdAccount)}
                     className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-medium"
                   >
-                    View in Vault
+                    Copy Credentials
                   </button>
                 </div>
               </div>
@@ -502,24 +677,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {/* Error Banner */}
           {createError && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5">
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5 max-w-2xl">
               <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{createError}</span>
             </div>
           )}
 
           {/* Creation Form */}
-          <form onSubmit={handleCreateStudentSubmit} className="space-y-4 max-w-2xl">
+          <form onSubmit={handleCreateAccountSubmit} className="space-y-4 max-w-2xl">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Student Full Name *
+                  {selectedRole === 'student'
+                    ? 'Student Full Name *'
+                    : selectedRole === 'faculty'
+                    ? 'Faculty Full Name *'
+                    : 'Parent / Guardian Full Name *'}
                 </label>
                 <input
                   type="text"
-                  value={studentName}
-                  onChange={(e) => handleStudentNameChange(e.target.value)}
-                  placeholder="e.g. Lucas Montgomery"
+                  value={fullName}
+                  onChange={(e) => handleFullNameChange(e.target.value)}
+                  placeholder={
+                    selectedRole === 'student'
+                      ? 'e.g. Lucas Montgomery'
+                      : selectedRole === 'faculty'
+                      ? 'e.g. Dr. Julian Croft'
+                      : 'e.g. Robert Kowalski'
+                  }
                   required
                   className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
                 />
@@ -531,9 +716,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={studentUsername}
+                  value={username}
                   onChange={(e) => {
-                    setStudentUsername(e.target.value.toLowerCase().trim());
+                    setUsername(e.target.value.toLowerCase().trim());
                     setCreateError(null);
                   }}
                   placeholder="e.g. lucas.montgomery"
@@ -545,17 +730,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Confidential Password *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Confidential Password *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGeneratePassword}
+                    className="text-[10px] text-purple-700 hover:text-purple-900 font-semibold flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Generate Strong</span>
+                  </button>
+                </div>
                 <input
                   type="text"
-                  value={studentPassword}
+                  value={password}
                   onChange={(e) => {
-                    setStudentPassword(e.target.value);
+                    setPassword(e.target.value);
                     setCreateError(null);
                   }}
-                  placeholder="e.g. LucasPass2026!"
+                  placeholder="e.g. AcademyPass2026!"
                   required
                   className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600 font-mono"
                 />
@@ -563,49 +758,154 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Student Academy ID
+                  {selectedRole === 'student'
+                    ? 'Student Academy ID *'
+                    : selectedRole === 'faculty'
+                    ? 'Faculty Staff ID *'
+                    : 'Parent Registry ID *'}
                 </label>
                 <input
                   type="text"
-                  value={studentIdNumber}
-                  onChange={(e) => setStudentIdNumber(e.target.value)}
+                  value={idNumber}
+                  onChange={(e) => setIdNumber(e.target.value)}
                   required
                   className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600 font-mono"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Academic Grade & Standing
-                </label>
-                <select
-                  value={studentGrade}
-                  onChange={(e) => setStudentGrade(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
-                >
-                  <option>Grade 9 · Freshman Honors</option>
-                  <option>Grade 10 · Sophomore Honors</option>
-                  <option>Grade 11 · STEM Honors</option>
-                  <option>Grade 12 · Senior Scholar</option>
-                  <option>Grade 12 · Advanced Placement</option>
-                </select>
-              </div>
+            {/* Dynamic Role-Specific Fields */}
+            {selectedRole === 'student' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Academic Grade & Cohort
+                  </label>
+                  <select
+                    value={studentGrade}
+                    onChange={(e) => setStudentGrade(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  >
+                    <option>Grade 9 · Freshman Honors</option>
+                    <option>Grade 10 · Sophomore Honors</option>
+                    <option>Grade 11 · STEM Honors</option>
+                    <option>Grade 12 · Senior Scholar</option>
+                    <option>Grade 12 · Advanced Placement</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Official Email Address
-                </label>
-                <input
-                  type="email"
-                  value={studentEmail}
-                  onChange={(e) => setStudentEmail(e.target.value)}
-                  placeholder="e.g. lucas.montgomery@excellence.edu"
-                  className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
-                />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Official Student Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="lucas@excellence.edu"
+                    className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  />
+                </div>
               </div>
-            </div>
+            )}
+
+            {selectedRole === 'faculty' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Academic Title / Prefix
+                  </label>
+                  <input
+                    type="text"
+                    value={facultyTitle}
+                    onChange={(e) => setFacultyTitle(e.target.value)}
+                    placeholder="e.g. Chair of Applied Mathematics"
+                    className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Department Division
+                  </label>
+                  <select
+                    value={facultyDept}
+                    onChange={(e) => setFacultyDept(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  >
+                    <option>Department of Natural Sciences & Engineering</option>
+                    <option>Department of Mathematics & Computing</option>
+                    <option>Department of Humanities & Literature</option>
+                    <option>Department of Classical Languages & Arts</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {selectedRole === 'parent' && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                      Linked Student (Ward Name) *
+                    </label>
+                    <input
+                      type="text"
+                      value={wardName}
+                      onChange={(e) => setWardName(e.target.value)}
+                      placeholder="e.g. Maya Jenkins"
+                      required
+                      className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                      Ward Grade
+                    </label>
+                    <input
+                      type="text"
+                      value={wardGrade}
+                      onChange={(e) => setWardGrade(e.target.value)}
+                      placeholder="e.g. Grade 10 · Sophomore Honors"
+                      required
+                      className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                      Relationship
+                    </label>
+                    <select
+                      value={parentRelationship}
+                      onChange={(e) => setParentRelationship(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    >
+                      <option>Mother / Guardian</option>
+                      <option>Father / Guardian</option>
+                      <option>Legal Guardian</option>
+                      <option>Sponsor</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                      Guardian Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={parentPhone}
+                      onChange={(e) => setParentPhone(e.target.value)}
+                      placeholder="+1 (555) 439-8821"
+                      className="w-full px-3 py-2 text-xs bg-purple-50/30 border border-purple-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600 font-mono"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="pt-2">
               <button
@@ -613,7 +913,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="px-6 py-2.5 bg-purple-800 hover:bg-purple-900 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-2 shadow-xs"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Enroll Student & Save Credentials</span>
+                <span>
+                  Provision {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} Account & Credentials
+                </span>
               </button>
             </div>
           </form>

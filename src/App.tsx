@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { UserAccount, LoginRecord } from './types/portal';
-import { INITIAL_LOGIN_RECORDS, FICTIONAL_ACCOUNTS } from './data/mockData';
+import { UserAccount, LoginRecord, Assignment, TuitionInvoice, FeeReceipt } from './types/portal';
+import {
+  INITIAL_LOGIN_RECORDS,
+  FICTIONAL_ACCOUNTS,
+  ASSIGNMENTS,
+  TUITION_INVOICE,
+  INITIAL_RECEIPTS,
+} from './data/mockData';
+import { processFeePayment } from './utils/auth';
 import { LoginView } from './components/LoginView';
 import { TopBar } from './components/TopBar';
 import { StudentDashboard } from './components/StudentDashboard';
@@ -29,6 +36,48 @@ export default function App() {
       // fallback
     }
     return FICTIONAL_ACCOUNTS;
+  });
+
+  // Dynamic shared coursework assignments state (persisted in localStorage)
+  const [assignments, setAssignments] = useState<Assignment[]>(() => {
+    try {
+      const saved = localStorage.getItem('ea_portal_assignments_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return ASSIGNMENTS;
+  });
+
+  // Dynamic tuition invoice & fees state (persisted in localStorage)
+  const [tuitionInvoice, setTuitionInvoice] = useState<TuitionInvoice>(() => {
+    try {
+      const saved = localStorage.getItem('ea_portal_tuition_v1');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // fallback
+    }
+    return TUITION_INVOICE;
+  });
+
+  // Dynamic fee payment receipts state (persisted in localStorage)
+  const [paymentReceipts, setPaymentReceipts] = useState<FeeReceipt[]>(() => {
+    try {
+      const saved = localStorage.getItem('ea_portal_receipts_v1');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // fallback
+    }
+    return INITIAL_RECEIPTS;
   });
 
   // Dynamic login audit records (persisted in localStorage)
@@ -69,8 +118,68 @@ export default function App() {
     });
   };
 
-  // Admin role: create new student account
-  const handleCreateStudent = (newAccount: UserAccount) => {
+  // Faculty role: assign new coursework that reflects on student portal
+  const handleCreateAssignment = (newAssignment: Assignment) => {
+    setAssignments((prev) => {
+      const updated = [newAssignment, ...prev];
+      try {
+        localStorage.setItem('ea_portal_assignments_v1', JSON.stringify(updated));
+      } catch {
+        // safety
+      }
+      return updated;
+    });
+  };
+
+  // Student role: toggle submission of coursework
+  const handleToggleAssignmentStatus = (assignmentId: string) => {
+    setAssignments((prev) => {
+      const updated = prev.map((a) => {
+        if (a.id === assignmentId) {
+          const nextStatus: Assignment['status'] =
+            a.status === 'Submitted' ? 'Pending' : 'Submitted';
+          return { ...a, status: nextStatus };
+        }
+        return a;
+      });
+      try {
+        localStorage.setItem('ea_portal_assignments_v1', JSON.stringify(updated));
+      } catch {
+        // safety
+      }
+      return updated;
+    });
+  };
+
+  // Parent role: pay school fees and generate receipt
+  const handlePayFees = (amount: number, method: string, payerName: string): FeeReceipt => {
+    const { updatedInvoice, receipt } = processFeePayment(tuitionInvoice, amount, {
+      paymentMethod: method,
+      payerName,
+    });
+
+    setTuitionInvoice(updatedInvoice);
+    setPaymentReceipts((prev) => {
+      const updated = [receipt, ...prev];
+      try {
+        localStorage.setItem('ea_portal_receipts_v1', JSON.stringify(updated));
+      } catch {
+        // safety
+      }
+      return updated;
+    });
+
+    try {
+      localStorage.setItem('ea_portal_tuition_v1', JSON.stringify(updatedInvoice));
+    } catch {
+      // safety
+    }
+
+    return receipt;
+  };
+
+  // Admin role: create new account (Student, Faculty, Parent)
+  const handleCreateAccount = (newAccount: UserAccount) => {
     setAccounts((prev) => {
       const updated = [...prev, newAccount];
       try {
@@ -154,6 +263,8 @@ export default function App() {
                   currentUser={currentUser}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
+                  assignments={assignments}
+                  onToggleAssignmentStatus={handleToggleAssignmentStatus}
                 />
               )}
 
@@ -162,6 +273,8 @@ export default function App() {
                   currentUser={currentUser}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
+                  assignments={assignments}
+                  onAddAssignment={handleCreateAssignment}
                 />
               )}
 
@@ -170,6 +283,10 @@ export default function App() {
                   currentUser={currentUser}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
+                  tuitionInvoice={tuitionInvoice}
+                  paymentReceipts={paymentReceipts}
+                  onPayFees={handlePayFees}
+                  assignments={assignments}
                 />
               )}
 
@@ -182,7 +299,8 @@ export default function App() {
                   onClearAuditRecords={handleClearAuditRecords}
                   onOpenAuditLogs={() => setIsAuditModalOpen(true)}
                   accounts={accounts}
-                  onCreateStudent={handleCreateStudent}
+                  onCreateAccount={handleCreateAccount}
+                  onCreateStudent={handleCreateAccount}
                   onRecordLogin={handleRecordLogin}
                   onSwitchAccount={handleSwitchAccount}
                   onUpdateAccountPassword={handleUpdateAccountPassword}

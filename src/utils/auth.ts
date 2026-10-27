@@ -1,4 +1,4 @@
-import { UserAccount, LoginRecord, CourseGrade } from '../types/portal';
+import { UserAccount, LoginRecord, CourseGrade, UserRole, TuitionInvoice, FeeReceipt } from '../types/portal';
 
 export interface VerificationResult {
   success: boolean;
@@ -163,7 +163,64 @@ export function isUsernameTaken(username: string, accounts: UserAccount[]): bool
 }
 
 /**
- * Creates and formats a new student account
+ * Parameters for creating an account with any role
+ */
+export interface CreateAccountParams {
+  role: UserRole;
+  fullName: string;
+  username: string;
+  password: string;
+  studentOrStaffId: string;
+  titleOrGrade: string;
+  email: string;
+  department?: string;
+  wardName?: string;
+  wardGrade?: string;
+  phone?: string;
+}
+
+/**
+ * Creates and formats an account for any role: Student, Faculty, Parent, or Admin.
+ */
+export function createAccount(params: CreateAccountParams): UserAccount {
+  const cleanUsername = params.username.trim().toLowerCase();
+  let bio = '';
+  if (params.role === 'student') {
+    bio = `Enrolled student in ${params.titleOrGrade.trim()}. Account provisioned by Office of the Registrar.`;
+  } else if (params.role === 'faculty') {
+    bio = `${params.titleOrGrade.trim()} · ${params.department?.trim() || 'Academic Department'}. Official faculty member.`;
+  } else if (params.role === 'parent') {
+    bio = `Authorized parent/guardian of ${params.wardName?.trim() || 'Student'} (${params.wardGrade?.trim() || 'Excellence Academy'}).`;
+  } else {
+    bio = `Administrator · Excellence Academy Executive Console.`;
+  }
+
+  return {
+    id: `acc_${params.role}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    username: cleanUsername,
+    password: params.password,
+    fullName: params.fullName.trim(),
+    email: params.email.trim(),
+    role: params.role,
+    studentOrStaffId: params.studentOrStaffId.trim(),
+    titleOrGrade: params.titleOrGrade.trim(),
+    department:
+      params.department?.trim() ||
+      (params.role === 'student'
+        ? 'Upper School Academic Division'
+        : params.role === 'faculty'
+        ? 'Department of Academic Studies'
+        : undefined),
+    wardName: params.wardName?.trim(),
+    wardGrade: params.wardGrade?.trim(),
+    phone: params.phone?.trim(),
+    avatarSeed: cleanUsername,
+    bio,
+  };
+}
+
+/**
+ * Creates and formats a new student account (backward compatible alias)
  */
 export function createStudentAccount(params: {
   fullName: string;
@@ -174,19 +231,59 @@ export function createStudentAccount(params: {
   email: string;
   department?: string;
 }): UserAccount {
-  return {
-    id: `acc_student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    username: params.username.trim().toLowerCase(),
-    password: params.password,
-    fullName: params.fullName.trim(),
-    email: params.email.trim(),
+  return createAccount({
     role: 'student',
-    studentOrStaffId: params.studentId.trim(),
-    titleOrGrade: params.grade.trim(),
-    department: params.department || 'Upper School Academic Division',
-    avatarSeed: params.username.trim().toLowerCase(),
-    bio: `Enrolled student in ${params.grade.trim()}. Account provisioned by Office of the Registrar.`,
+    fullName: params.fullName,
+    username: params.username,
+    password: params.password,
+    studentOrStaffId: params.studentId,
+    titleOrGrade: params.grade,
+    email: params.email,
+    department: params.department,
+  });
+}
+
+/**
+ * Processes a tuition / school fee payment, updating balance and generating a verifiable receipt
+ */
+export function processFeePayment(
+  invoice: TuitionInvoice,
+  amount: number,
+  params: {
+    paymentMethod: string;
+    payerName: string;
+  }
+): { updatedInvoice: TuitionInvoice; receipt: FeeReceipt } {
+  const validAmount = Math.max(0, Math.min(amount, invoice.dueAmount));
+  const newPaidAmount = invoice.paidAmount + validAmount;
+  const newDueAmount = Math.max(0, invoice.totalAmount - newPaidAmount);
+  const newStatus: TuitionInvoice['status'] = newDueAmount === 0 ? 'Paid in Full' : 'Partial';
+
+  const updatedInvoice: TuitionInvoice = {
+    ...invoice,
+    paidAmount: newPaidAmount,
+    dueAmount: newDueAmount,
+    status: newStatus,
   };
+
+  const receipt: FeeReceipt = {
+    id: `rcp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    transactionRef: `EA-PAY-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+    invoiceId: invoice.id,
+    term: invoice.term,
+    amountPaid: validAmount,
+    date: new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(new Date()),
+    paymentMethod: params.paymentMethod,
+    payerName: params.payerName,
+    remainingBalance: newDueAmount,
+    status: 'Confirmed',
+  };
+
+  return { updatedInvoice, receipt };
 }
 
 /**

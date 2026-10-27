@@ -6,9 +6,11 @@ import {
   calculateGPA,
   filterAuditLogs,
   createStudentAccount,
+  createAccount,
+  processFeePayment,
   isUsernameTaken,
 } from './auth';
-import { UserAccount, CourseGrade } from '../types/portal';
+import { UserAccount, CourseGrade, TuitionInvoice } from '../types/portal';
 
 const mockAccounts: UserAccount[] = [
   {
@@ -220,5 +222,91 @@ test('isUsernameTaken: accurately identifies existing usernames', () => {
   assert.equal(isUsernameTaken('olivia.chen', mockAccounts), true);
   assert.equal(isUsernameTaken('OLIVIA.CHEN', mockAccounts), true);
   assert.equal(isUsernameTaken('brand.new.student', mockAccounts), false);
+});
+
+test('createAccount: creates valid faculty account and verifies password login', () => {
+  const newFaculty = createAccount({
+    role: 'faculty',
+    fullName: 'Prof. Julian Croft',
+    username: 'julian.croft',
+    password: 'CroftFaculty2026!',
+    studentOrStaffId: 'FAC-8831',
+    titleOrGrade: 'Associate Professor of Mathematics',
+    department: 'Department of Mathematical Sciences',
+    email: 'j.croft@excellence.edu',
+  });
+
+  assert.equal(newFaculty.role, 'faculty');
+  assert.equal(newFaculty.fullName, 'Prof. Julian Croft');
+  assert.equal(newFaculty.studentOrStaffId, 'FAC-8831');
+  assert.equal(newFaculty.department, 'Department of Mathematical Sciences');
+
+  const authResult = verifyCredentials('julian.croft', 'CroftFaculty2026!', [
+    ...mockAccounts,
+    newFaculty,
+  ]);
+  assert.equal(authResult.success, true);
+  assert.equal(authResult.account?.role, 'faculty');
+});
+
+test('createAccount: creates valid parent account linked to ward and verifies password login', () => {
+  const newParent = createAccount({
+    role: 'parent',
+    fullName: 'Elena Sterling',
+    username: 'elena.sterling',
+    password: 'SterlingParent2026!',
+    studentOrStaffId: 'PAR-4491',
+    titleOrGrade: 'Parent / Legal Guardian',
+    wardName: 'Liam Sterling',
+    wardGrade: 'Grade 12 · Humanities',
+    phone: '+1 (555) 928-1122',
+    email: 'elena@sterlingfamily.org',
+  });
+
+  assert.equal(newParent.role, 'parent');
+  assert.equal(newParent.wardName, 'Liam Sterling');
+  assert.equal(newParent.wardGrade, 'Grade 12 · Humanities');
+
+  const authResult = verifyCredentials('elena.sterling', 'SterlingParent2026!', [
+    ...mockAccounts,
+    newParent,
+  ]);
+  assert.equal(authResult.success, true);
+  assert.equal(authResult.account?.role, 'parent');
+});
+
+test('processFeePayment: processes partial and full fee payments correctly', () => {
+  const invoice: TuitionInvoice = {
+    id: 'INV-2026-T1',
+    term: 'Fall Term 2026',
+    totalAmount: 4250,
+    paidAmount: 0,
+    dueAmount: 4250,
+    dueDate: 'Nov 15, 2026',
+    status: 'Pending',
+    items: [{ description: 'Term 1 Tuition', amount: 4250 }],
+  };
+
+  // 1. Partial payment of $1,500
+  const partial = processFeePayment(invoice, 1500, {
+    paymentMethod: 'Credit Card (••4242)',
+    payerName: 'Sarah Jenkins',
+  });
+  assert.equal(partial.updatedInvoice.paidAmount, 1500);
+  assert.equal(partial.updatedInvoice.dueAmount, 2750);
+  assert.equal(partial.updatedInvoice.status, 'Partial');
+  assert.equal(partial.receipt.amountPaid, 1500);
+  assert.equal(partial.receipt.remainingBalance, 2750);
+  assert.ok(partial.receipt.transactionRef.startsWith('EA-PAY-2026-'));
+
+  // 2. Full remaining balance payment
+  const full = processFeePayment(partial.updatedInvoice, 2750, {
+    paymentMethod: 'Bank ACH Transfer',
+    payerName: 'Sarah Jenkins',
+  });
+  assert.equal(full.updatedInvoice.paidAmount, 4250);
+  assert.equal(full.updatedInvoice.dueAmount, 0);
+  assert.equal(full.updatedInvoice.status, 'Paid in Full');
+  assert.equal(full.receipt.remainingBalance, 0);
 });
 
