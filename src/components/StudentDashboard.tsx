@@ -26,14 +26,12 @@ interface StudentDashboardProps {
   currentUser: UserAccount;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onOpenAuditLogs: () => void;
 }
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   currentUser,
   activeTab,
   setActiveTab,
-  onOpenAuditLogs,
 }) => {
   const [selectedDay, setSelectedDay] = useState<
     'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'
@@ -99,12 +97,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               className="px-4 py-2 bg-purple-600/80 hover:bg-purple-600 text-white rounded-xl text-xs font-semibold border border-purple-400/30 transition-colors shadow-xs"
             >
               View Gradebook
-            </button>
-            <button
-              onClick={onOpenAuditLogs}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-purple-100 rounded-xl text-xs font-semibold border border-white/20 transition-colors"
-            >
-              Session Logs
             </button>
           </div>
         </div>

@@ -16,14 +16,12 @@ interface FacultyDashboardProps {
   currentUser: UserAccount;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onOpenAuditLogs: () => void;
 }
 
 export const FacultyDashboard: React.FC<FacultyDashboardProps> = ({
   currentUser,
   activeTab,
   setActiveTab,
-  onOpenAuditLogs,
 }) => {
   const [roster, setRoster] = useState(FACULTY_ROSTER);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -95,12 +93,6 @@ export const FacultyDashboard: React.FC<FacultyDashboardProps> = ({
               className="px-4 py-2 bg-purple-700/80 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold border border-purple-400/30 transition-colors"
             >
               Class Rosters
-            </button>
-            <button
-              onClick={onOpenAuditLogs}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-purple-100 rounded-xl text-xs font-semibold border border-white/20 transition-colors"
-            >
-              Security Records
             </button>
           </div>
         </div>

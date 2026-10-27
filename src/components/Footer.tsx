@@ -3,11 +3,12 @@ import { ACADEMY_CREST_IMG } from '../data/mockData';
 import { ShieldCheck, Heart, ExternalLink } from 'lucide-react';
 
 interface FooterProps {
-  onOpenAuditLogs: () => void;
+  onOpenAuditLogs?: () => void;
   onSwitchUser?: () => void;
+  isAdmin?: boolean;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenAuditLogs, onSwitchUser }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenAuditLogs, onSwitchUser, isAdmin }) => {
   return (
     <footer className="mt-16 border-t border-purple-100 bg-white/80 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
@@ -34,14 +35,18 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAuditLogs, onSwitchUser })
 
         {/* Links & Quick Actions */}
         <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
-          <button
-            onClick={onOpenAuditLogs}
-            className="hover:text-purple-900 transition-colors flex items-center gap-1 font-medium"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-purple-700" />
-            <span>Login Audit Registry</span>
-          </button>
-          <span>·</span>
+          {isAdmin && onOpenAuditLogs && (
+            <>
+              <button
+                onClick={onOpenAuditLogs}
+                className="hover:text-purple-900 transition-colors flex items-center gap-1 font-medium text-purple-700"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-700" />
+                <span>Admin Audit Registry</span>
+              </button>
+              <span>·</span>
+            </>
+          )}
           <span>Terms of Academic Integrity</span>
           <span>·</span>
           <span>Campus Security (555) 234-9911</span>

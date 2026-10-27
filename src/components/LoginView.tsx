@@ -20,16 +20,12 @@ interface LoginViewProps {
   accounts: UserAccount[];
   onLoginSuccess: (account: UserAccount) => void;
   onRecordLogin: (record: LoginRecord) => void;
-  onOpenAuditLogs: () => void;
-  recentAuditCount: number;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
   accounts,
   onLoginSuccess,
   onRecordLogin,
-  onOpenAuditLogs,
-  recentAuditCount,
 }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -139,14 +135,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onOpenAuditLogs}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-800 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-700" />
-              <span>Security Audit Registry ({recentAuditCount})</span>
-            </button>
+          <div className="flex items-center gap-2 text-xs text-purple-700/80 font-medium">
+            <Shield className="w-3.5 h-3.5 text-purple-600" />
+            <span className="hidden sm:inline">Secure Academic Gateway</span>
           </div>
         </div>
       </header>
@@ -410,13 +401,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   Password-only verification active
                 </span>
-                <button
-                  type="button"
-                  onClick={onOpenAuditLogs}
-                  className="text-purple-700 font-semibold hover:text-purple-900 underline text-xs"
-                >
-                  View Security Audit Log ({recentAuditCount})
-                </button>
+                <span className="text-slate-400 text-[11px]">
+                  Authorized Access Only
+                </span>
               </div>
             </div>
 

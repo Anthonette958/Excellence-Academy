@@ -132,8 +132,6 @@ export default function App() {
           accounts={accounts}
           onLoginSuccess={handleLoginSuccess}
           onRecordLogin={handleRecordLogin}
-          onOpenAuditLogs={() => setIsAuditModalOpen(true)}
-          recentAuditCount={auditRecords.length}
         />
       ) : (
         /* If logged in, display the Authenticated School Portal Workspace */
@@ -156,7 +154,6 @@ export default function App() {
                   currentUser={currentUser}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
-                  onOpenAuditLogs={() => setIsAuditModalOpen(true)}
                 />
               )}
 
@@ -165,7 +162,6 @@ export default function App() {
                   currentUser={currentUser}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
-                  onOpenAuditLogs={() => setIsAuditModalOpen(true)}
                 />
               )}
 
@@ -174,7 +170,6 @@ export default function App() {
                   currentUser={currentUser}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
-                  onOpenAuditLogs={() => setIsAuditModalOpen(true)}
                 />
               )}
 
@@ -197,19 +192,22 @@ export default function App() {
           </div>
 
           <Footer
+            isAdmin={currentUser.role === 'admin'}
             onOpenAuditLogs={() => setIsAuditModalOpen(true)}
             onSwitchUser={handleLogout}
           />
         </div>
       )}
 
-      {/* Global Login Audit Records Modal (Accessible from both login and dashboard) */}
-      <LoginAuditModal
-        isOpen={isAuditModalOpen}
-        onClose={() => setIsAuditModalOpen(false)}
-        records={auditRecords}
-        onClearRecords={handleClearAuditRecords}
-      />
+      {/* Administrator-Only Login Audit Records Modal */}
+      {currentUser?.role === 'admin' && (
+        <LoginAuditModal
+          isOpen={isAuditModalOpen}
+          onClose={() => setIsAuditModalOpen(false)}
+          records={auditRecords}
+          onClearRecords={handleClearAuditRecords}
+        />
+      )}
     </div>
   );
 }

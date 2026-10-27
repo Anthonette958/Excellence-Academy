@@ -111,18 +111,20 @@ export const TopBar: React.FC<TopBarProps> = ({
 
           {/* Zone 3: Security Login Records Action + User Profile & Sign Out */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Audit Log Trigger */}
-            <button
-              onClick={onOpenAuditLogs}
-              title="View recorded login history and authentication logs"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-purple-800 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors whitespace-nowrap shrink-0"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-700" />
-              <span className="hidden sm:inline">Login Records</span>
-              <span className="bg-purple-200 text-purple-900 text-[10px] px-1.5 py-0.2 rounded-full tabular-nums font-bold">
-                {totalLogCount}
-              </span>
-            </button>
+            {/* Audit Log Trigger - Strictly restricted to Administrator */}
+            {currentUser.role === 'admin' && (
+              <button
+                onClick={onOpenAuditLogs}
+                title="View recorded login history and authentication logs"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-purple-800 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors whitespace-nowrap shrink-0"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-700" />
+                <span className="hidden sm:inline">Audit Registry</span>
+                <span className="bg-purple-200 text-purple-900 text-[10px] px-1.5 py-0.2 rounded-full tabular-nums font-bold">
+                  {totalLogCount}
+                </span>
+              </button>
+            )}
 
             {/* User Profile Mini */}
             <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-purple-100">
