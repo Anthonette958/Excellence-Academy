@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount, LoginRecord } from '../types/portal';
 import { verifyCredentials, createLoginRecord } from '../utils/auth';
-import { ACADEMY_CREST_IMG, ACADEMY_CAMPUS_IMG } from '../data/mockData';
+import { ACADEMY_CAMPUS_IMG } from '../data/mockData';
+import { AcademyCrest } from './AcademyCrest';
 import {
   Lock,
   User,
@@ -118,12 +119,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg overflow-hidden border border-purple-200 bg-purple-50">
-              <img
-                src={ACADEMY_CREST_IMG}
-                alt="Excellence Academy"
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+              <AcademyCrest className="w-full h-full object-cover" />
             </div>
             <div>
               <span className="font-serif font-bold text-purple-950 text-base">
@@ -159,13 +155,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
 
             <div className="relative z-10">
-              <div className="w-16 h-16 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 p-1 mb-6 flex items-center justify-center shadow-inner">
-                <img
-                  src={ACADEMY_CREST_IMG}
-                  alt="Crest"
-                  className="w-full h-full object-contain"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="w-16 h-16 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 p-1 mb-6 flex items-center justify-center shadow-inner overflow-hidden">
+                <AcademyCrest className="w-full h-full object-contain" />
               </div>
 
               <span className="text-purple-300 text-xs font-semibold tracking-wider uppercase block mb-1">

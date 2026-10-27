@@ -9,9 +9,11 @@ import {
   FeeReceipt,
   LoginRecord,
 } from '../types/portal';
+import academyCrestImg from '../assets/images/academy_crest_1792754808110.jpg';
+import academyCampusImg from '../assets/images/campus_grounds_1792754808054.jpg';
 
-export const ACADEMY_CREST_IMG = '/src/assets/images/academy_crest_1792754808110.jpg';
-export const ACADEMY_CAMPUS_IMG = '/src/assets/images/campus_grounds_1792754808054.jpg';
+export const ACADEMY_CREST_IMG = academyCrestImg;
+export const ACADEMY_CAMPUS_IMG = academyCampusImg;
 
 export const FICTIONAL_ACCOUNTS: UserAccount[] = [
   {

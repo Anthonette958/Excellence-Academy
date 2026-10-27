@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserAccount } from '../types/portal';
-import { ACADEMY_CREST_IMG } from '../data/mockData';
+import { AcademyCrest } from './AcademyCrest';
 import { ShieldCheck, LogOut, ShieldAlert, User, Bell } from 'lucide-react';
 
 interface TopBarProps {
@@ -69,15 +69,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           {/* Zone 1: Single text element Brand mark with crest */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="w-9 h-9 rounded-lg overflow-hidden border border-purple-200 shadow-xs bg-purple-50 flex items-center justify-center">
-              <img
-                src={ACADEMY_CREST_IMG}
-                alt="Excellence Academy Crest"
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
+              <AcademyCrest className="w-full h-full object-cover" />
             </div>
             <div>
               <span className="text-base sm:text-lg font-bold tracking-tight text-purple-950 font-serif block leading-none">

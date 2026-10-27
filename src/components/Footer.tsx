@@ -1,5 +1,5 @@
 import React from 'react';
-import { ACADEMY_CREST_IMG } from '../data/mockData';
+import { AcademyCrest } from './AcademyCrest';
 import { ShieldCheck, Heart, ExternalLink } from 'lucide-react';
 
 interface FooterProps {
@@ -16,12 +16,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAuditLogs, onSwitchUser, i
         {/* Brand & Crest info */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg overflow-hidden border border-purple-200 bg-purple-50 flex items-center justify-center shrink-0">
-            <img
-              src={ACADEMY_CREST_IMG}
-              alt="Excellence Academy"
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
+            <AcademyCrest className="w-full h-full object-cover" />
           </div>
           <div>
             <span className="font-serif font-bold text-sm text-purple-950 block">
