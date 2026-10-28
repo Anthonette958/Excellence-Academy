@@ -39,11 +39,24 @@ export const LoginAuditModal: React.FC<LoginAuditModalProps> = ({
   const deniedCount = records.filter((r) => r.status === 'Denied').length;
 
   const handleExportCSV = () => {
-    const headers = ['Timestamp', 'Username', 'Status', 'Role', 'Failure Reason', 'IP Address', 'Device', 'Location'];
+    const headers = [
+      'Timestamp',
+      'Username',
+      'Status',
+      'Auth Factor',
+      'OTP Status',
+      'Role',
+      'Failure Reason',
+      'IP Address',
+      'Device',
+      'Location',
+    ];
     const rows = filtered.map((r) => [
       `"${r.formattedDate}"`,
       `"${r.username}"`,
       `"${r.status}"`,
+      `"${r.authFactor || 'Password'}"`,
+      `"${r.otpStatus || 'N/A'}"`,
       `"${r.role || 'N/A'}"`,
       `"${r.failureReason || 'None (Access Granted)'}"`,
       `"${r.ipAddress}"`,
@@ -223,7 +236,7 @@ export const LoginAuditModal: React.FC<LoginAuditModalProps> = ({
                         </div>
 
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-sm text-purple-950 font-mono">
                               {record.username}
                             </span>
@@ -236,6 +249,31 @@ export const LoginAuditModal: React.FC<LoginAuditModalProps> = ({
                             >
                               {record.status === 'Granted' ? 'Access Granted' : 'Access Denied'}
                             </span>
+                            {record.authFactor && record.authFactor.startsWith('Two-Factor') ? (
+                              <span
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                                  record.otpStatus === 'VERIFIED'
+                                    ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                    : record.otpStatus === 'EXPIRED_OTP'
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                    : 'bg-rose-100 text-rose-900 border border-rose-200'
+                                }`}
+                              >
+                                {record.otpStatus === 'VERIFIED'
+                                  ? record.authFactor.includes('Email')
+                                    ? '2FA Verified (Email OTP)'
+                                    : record.authFactor.includes('SMS')
+                                    ? '2FA Verified (SMS OTP)'
+                                    : '2FA Verified (OTP)'
+                                  : record.otpStatus === 'EXPIRED_OTP'
+                                  ? '2FA: OTP Expired'
+                                  : '2FA: Invalid OTP'}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                                Password Factor
+                              </span>
+                            )}
                             {record.role && (
                               <span className="text-xs text-slate-500 capitalize hidden sm:inline">
                                 · {record.role}
@@ -244,10 +282,10 @@ export const LoginAuditModal: React.FC<LoginAuditModalProps> = ({
                           </div>
 
                           {/* Failure reason or successful notification */}
-                          <div className="text-xs text-slate-600 mt-0.5">
+                          <div className="text-xs text-slate-600 mt-1">
                             {isGranted ? (
                               <span className="text-emerald-700 font-medium">
-                                Password authentication verified against academy records
+                                Two-Factor authentication verified · Login Successful
                               </span>
                             ) : (
                               <span className="text-rose-700 font-medium">

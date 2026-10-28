@@ -1,4 +1,14 @@
-import { UserAccount, LoginRecord, CourseGrade, UserRole, TuitionInvoice, FeeReceipt } from '../types/portal';
+import {
+  UserAccount,
+  LoginRecord,
+  CourseGrade,
+  UserRole,
+  TuitionInvoice,
+  FeeReceipt,
+  OtpSession,
+  OtpVerificationResult,
+  EmailDispatchLog,
+} from '../types/portal';
 
 export interface VerificationResult {
   success: boolean;
@@ -9,7 +19,7 @@ export interface VerificationResult {
 
 /**
  * Verifies username and password against stored fictional account credentials.
- * Implements password-only authentication check against stored academy records.
+ * Implements password authentication check as Factor 1.
  */
 export function verifyCredentials(
   usernameInput: string,
@@ -72,6 +82,334 @@ export function verifyCredentials(
 }
 
 /**
+ * Generates a random 6-digit numeric OTP code
+ */
+export function generateOtpCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
+ * Creates an active OTP session for a user whose password was verified.
+ * Standard validity duration is 90 seconds (configurable).
+ */
+export function createOtpSession(
+  account: UserAccount,
+  options?: {
+    customCode?: string;
+    validitySeconds?: number;
+    channel?: 'sms' | 'email';
+    deliveryAddress?: string;
+  }
+): OtpSession {
+  const code = options?.customCode || generateOtpCode();
+  const validitySeconds = options?.validitySeconds ?? 90;
+  const now = Date.now();
+  const channel = options?.channel || 'email';
+  const deliveryAddress =
+    options?.deliveryAddress ||
+    (channel === 'sms'
+      ? account.phone || PRIMARY_REGISTERED_PHONE
+      : account.email || PRIMARY_REGISTERED_EMAIL);
+
+  return {
+    sessionId: `otp_${now}_${Math.random().toString(36).substring(2, 7)}`,
+    username: account.username,
+    code,
+    createdAt: now,
+    expiresAt: now + validitySeconds * 1000,
+    account,
+    attempts: 0,
+    channel,
+    deliveryAddress,
+  };
+}
+
+/**
+ * Requests and generates a new OTP session for the user, replacing previous expired/invalid code.
+ */
+export function requestNewOtp(
+  previousSession: OtpSession,
+  options?: {
+    customCode?: string;
+    validitySeconds?: number;
+    channel?: 'sms' | 'email';
+    deliveryAddress?: string;
+  }
+): OtpSession {
+  return createOtpSession(previousSession.account, {
+    channel: options?.channel || previousSession.channel,
+    deliveryAddress: options?.deliveryAddress || previousSession.deliveryAddress,
+    ...options,
+  });
+}
+
+/**
+ * Verifies a user-entered OTP against the active OTP session.
+ * Checks for empty input, expiration, and code correctness.
+ */
+export function verifyOtp(
+  session: OtpSession | null | undefined,
+  inputOtp: string,
+  currentTimeMs?: number
+): OtpVerificationResult {
+  if (!session) {
+    return {
+      success: false,
+      reason: 'EMPTY_OTP',
+      error: 'Access denied: No active OTP verification session found. Please enter your credentials first.',
+    };
+  }
+
+  const cleanedInput = (inputOtp || '').replace(/[\s-]/g, '').trim();
+
+  if (!cleanedInput) {
+    return {
+      success: false,
+      reason: 'EMPTY_OTP',
+      error: 'Please enter the 6-digit One-Time Password sent to your authorized device.',
+    };
+  }
+
+  const now = currentTimeMs ?? Date.now();
+
+  // Check if OTP has expired
+  if (now > session.expiresAt) {
+    return {
+      success: false,
+      reason: 'EXPIRED_OTP',
+      error: 'Access denied: One-Time Password has expired. Verification codes are time-limited. Please request a new OTP to try again.',
+      account: session.account,
+    };
+  }
+
+  // Check code match
+  if (cleanedInput !== session.code) {
+    return {
+      success: false,
+      reason: 'INVALID_OTP',
+      error: 'Access denied: Invalid One-Time Password entered. Please re-enter the code or request a new OTP.',
+      account: session.account,
+    };
+  }
+
+  return {
+    success: true,
+    account: session.account,
+  };
+}
+
+export const PRIMARY_REGISTERED_PHONE = '+2348161759263';
+export const PRIMARY_REGISTERED_EMAIL = 'olivia.chen@excellence.edu';
+
+/**
+ * Masks a telephone number for secure display on the login page
+ * e.g., '+2348161759263' -> '+234 816 ••• 9263'
+ */
+export function maskPhoneNumber(phone?: string): string {
+  const target = (phone || PRIMARY_REGISTERED_PHONE).trim();
+  const digits = target.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+234') && digits.length >= 13) {
+    const country = digits.slice(0, 4); // +234
+    const prefix = digits.slice(4, 7); // 816
+    const last = digits.slice(-4); // 9263
+    return `${country} ${prefix} ••• ${last}`;
+  }
+  if (digits.length >= 10) {
+    const start = digits.slice(0, 4);
+    const end = digits.slice(-4);
+    return `${start} ••• ${end}`;
+  }
+  return '+234 816 ••• 9263';
+}
+
+/**
+ * Masks an email address for secure display on the login page
+ * e.g., 'olivia.chen@excellence.edu' -> 'o•••••••••n@excellence.edu'
+ * e.g., 'm.vance@excellence.edu' -> 'm•••••e@excellence.edu'
+ */
+export function maskEmailAddress(email?: string): string {
+  const target = (email || PRIMARY_REGISTERED_EMAIL).trim();
+  const atIndex = target.indexOf('@');
+  if (atIndex === -1) {
+    return '••••••••@excellence.edu';
+  }
+
+  const localPart = target.slice(0, atIndex);
+  const domain = target.slice(atIndex);
+
+  if (localPart.length <= 1) {
+    return `${localPart}••${domain}`;
+  }
+  if (localPart.length === 2) {
+    return `${localPart[0]}•${localPart[1]}${domain}`;
+  }
+
+  const firstChar = localPart[0];
+  const lastChar = localPart[localPart.length - 1];
+  const bulletCount = Math.min(Math.max(localPart.length - 2, 3), 9);
+  const maskedLocal = `${firstChar}${'•'.repeat(bulletCount)}${lastChar}`;
+
+  return `${maskedLocal}${domain}`;
+}
+
+/**
+ * Secure recipient display for 2FA challenge showing registered phone number
+ */
+export function getMaskedRecipient(account?: UserAccount): string {
+  const phone = account?.phone || PRIMARY_REGISTERED_PHONE;
+  return maskPhoneNumber(phone);
+}
+
+/**
+ * Secure recipient display for 2FA challenge showing registered email address
+ */
+export function getMaskedEmail(account?: UserAccount): string {
+  const email = account?.email || PRIMARY_REGISTERED_EMAIL;
+  return maskEmailAddress(email);
+}
+
+export interface SmsDispatchLog {
+  id: string;
+  recipient: string;
+  message: string;
+  timestamp: string;
+  code: string;
+  status: 'Delivered' | 'Pending';
+}
+
+/**
+ * Dispatches the OTP to the registered phone number (+2348161759263).
+ * Securely logs to dev console and memory dispatch store.
+ */
+export function dispatchOtpSms(
+  recipientPhone: string,
+  otpCode: string,
+  userName: string
+): SmsDispatchLog {
+  const targetPhone = recipientPhone || PRIMARY_REGISTERED_PHONE;
+  const message = `Excellence Academy Security: Hello ${userName}, your 2FA verification code is ${otpCode}. Valid for 90 seconds. Do not disclose this code.`;
+
+  if (typeof console !== 'undefined') {
+    console.log(
+      `%c[SMS Gateway Dispatch → ${targetPhone}]`,
+      'color: #9333ea; font-weight: bold; background: #f5f3ff; border: 1px solid #c084fc; padding: 4px 8px; border-radius: 4px;',
+      message
+    );
+  }
+
+  // Trigger outbound carrier dispatch via full-stack API route
+  if (typeof fetch !== 'undefined') {
+    fetch('/api/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: targetPhone,
+        code: otpCode,
+        fullName: userName,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof console !== 'undefined') {
+          console.log('[Cellular Equipment Gateway Response]', data);
+        }
+      })
+      .catch(() => {
+        // network fallback
+      });
+  }
+
+  const log: SmsDispatchLog = {
+    id: `sms_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    recipient: targetPhone,
+    message,
+    timestamp: new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(new Date()),
+    code: otpCode,
+    status: 'Delivered',
+  };
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ea_last_sms_dispatch', JSON.stringify(log));
+    }
+  } catch {}
+
+  return log;
+}
+
+/**
+ * Dispatches the OTP to the registered academic email address.
+ * Securely logs to dev console, server endpoint, and memory dispatch store.
+ */
+export function dispatchOtpEmail(
+  recipientEmail: string,
+  otpCode: string,
+  userName: string
+): EmailDispatchLog {
+  const targetEmail = recipientEmail || PRIMARY_REGISTERED_EMAIL;
+  const subject = 'Excellence Academy Security: 2FA One-Time Password';
+  const message = `Excellence Academy Security: Hello ${userName}, your 2FA verification code is ${otpCode}. Valid for 90 seconds. Do not disclose this code.`;
+
+  if (typeof console !== 'undefined') {
+    console.log(
+      `%c[Email Gateway Dispatch → ${targetEmail}]`,
+      'color: #0284c7; font-weight: bold; background: #f0f9ff; border: 1px solid #7dd3fc; padding: 4px 8px; border-radius: 4px;',
+      `Subject: ${subject} | Code: ${otpCode}`
+    );
+  }
+
+  // Trigger outbound email dispatch via full-stack API route
+  if (typeof fetch !== 'undefined') {
+    fetch('/api/send-email-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: targetEmail,
+        code: otpCode,
+        fullName: userName,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof console !== 'undefined') {
+          console.log('[Email Gateway Response]', data);
+        }
+      })
+      .catch(() => {
+        // network fallback
+      });
+  }
+
+  const log: EmailDispatchLog = {
+    id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    recipient: targetEmail,
+    subject,
+    message,
+    timestamp: new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(new Date()),
+    code: otpCode,
+    status: 'Delivered',
+  };
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ea_last_email_dispatch', JSON.stringify(log));
+    }
+  } catch {}
+
+  return log;
+}
+
+/**
  * Creates a structured login record when access is granted or denied
  */
 export function createLoginRecord(
@@ -82,6 +420,8 @@ export function createLoginRecord(
     failureReason?: string;
     userAgent?: string;
     ipAddress?: string;
+    authFactor?: 'Password' | 'Two-Factor (OTP)' | 'Two-Factor (SMS OTP)' | 'Two-Factor (Email OTP)';
+    otpStatus?: 'VERIFIED' | 'INVALID_OTP' | 'EXPIRED_OTP' | 'NOT_REACHED';
   }
 ): LoginRecord {
   const now = new Date();
@@ -117,6 +457,8 @@ export function createLoginRecord(
     ipAddress: options?.ipAddress || '192.168.10.42',
     deviceInfo: options?.userAgent || defaultUserAgent,
     location: 'Campus Network · West Hall Gateway',
+    authFactor: options?.authFactor || (status === 'Granted' ? 'Two-Factor (OTP)' : 'Password'),
+    otpStatus: options?.otpStatus,
   };
 }
 

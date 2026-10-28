@@ -28,6 +28,37 @@ export interface LoginRecord {
   ipAddress: string;
   deviceInfo: string;
   location: string;
+  authFactor?: 'Password' | 'Two-Factor (OTP)' | 'Two-Factor (SMS OTP)' | 'Two-Factor (Email OTP)';
+  otpStatus?: 'VERIFIED' | 'INVALID_OTP' | 'EXPIRED_OTP' | 'NOT_REACHED';
+}
+
+export interface OtpSession {
+  sessionId: string;
+  username: string;
+  code: string;
+  createdAt: number;
+  expiresAt: number;
+  account: UserAccount;
+  attempts: number;
+  channel?: 'sms' | 'email';
+  deliveryAddress?: string;
+}
+
+export interface EmailDispatchLog {
+  id: string;
+  recipient: string;
+  subject: string;
+  message: string;
+  code: string;
+  timestamp: string;
+  status: 'Delivered' | 'Pending';
+}
+
+export interface OtpVerificationResult {
+  success: boolean;
+  reason?: 'INVALID_OTP' | 'EXPIRED_OTP' | 'EMPTY_OTP';
+  error?: string;
+  account?: UserAccount;
 }
 
 export interface CourseGrade {

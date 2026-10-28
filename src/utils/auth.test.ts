@@ -9,6 +9,18 @@ import {
   createAccount,
   processFeePayment,
   isUsernameTaken,
+  createOtpSession,
+  verifyOtp,
+  requestNewOtp,
+  generateOtpCode,
+  maskPhoneNumber,
+  PRIMARY_REGISTERED_PHONE,
+  dispatchOtpSms,
+  getMaskedRecipient,
+  maskEmailAddress,
+  PRIMARY_REGISTERED_EMAIL,
+  getMaskedEmail,
+  dispatchOtpEmail,
 } from './auth';
 import { UserAccount, CourseGrade, TuitionInvoice } from '../types/portal';
 
@@ -309,4 +321,223 @@ test('processFeePayment: processes partial and full fee payments correctly', () 
   assert.equal(full.updatedInvoice.status, 'Paid in Full');
   assert.equal(full.receipt.remainingBalance, 0);
 });
+
+test('generateOtpCode: creates a 6-digit numeric string', () => {
+  const code = generateOtpCode();
+  assert.equal(code.length, 6);
+  assert.match(code, /^\d{6}$/);
+});
+
+test('createOtpSession: initializes session with valid expiration', () => {
+  const user = mockAccounts[0];
+  const now = Date.now();
+  const session = createOtpSession(user, { validitySeconds: 90 });
+
+  assert.equal(session.username, 'olivia.chen');
+  assert.equal(session.account.id, user.id);
+  assert.equal(session.code.length, 6);
+  assert.ok(session.expiresAt >= now + 89000);
+  assert.ok(session.expiresAt <= now + 91000);
+});
+
+test('verifyOtp: grants access when code is correct and not expired', () => {
+  const user = mockAccounts[0];
+  const session = createOtpSession(user, { customCode: '741258', validitySeconds: 60 });
+
+  const result = verifyOtp(session, '741258', session.createdAt + 10000);
+  assert.equal(result.success, true);
+  assert.equal(result.account?.fullName, 'Olivia Chen');
+  assert.equal(result.error, undefined);
+});
+
+test('verifyOtp: allows formatted codes with spaces or hyphens', () => {
+  const user = mockAccounts[0];
+  const session = createOtpSession(user, { customCode: '741258', validitySeconds: 60 });
+
+  const withSpaces = verifyOtp(session, '741 258', session.createdAt + 5000);
+  assert.equal(withSpaces.success, true);
+
+  const withHyphen = verifyOtp(session, '741-258', session.createdAt + 5000);
+  assert.equal(withHyphen.success, true);
+});
+
+test('verifyOtp: denies access with invalid OTP code', () => {
+  const user = mockAccounts[0];
+  const session = createOtpSession(user, { customCode: '741258', validitySeconds: 60 });
+
+  const result = verifyOtp(session, '999999', session.createdAt + 5000);
+  assert.equal(result.success, false);
+  assert.equal(result.reason, 'INVALID_OTP');
+  assert.match(result.error || '', /Access denied: Invalid One-Time Password/);
+});
+
+test('verifyOtp: denies access when OTP is expired and prompts for a new OTP', () => {
+  const user = mockAccounts[0];
+  const session = createOtpSession(user, { customCode: '741258', validitySeconds: 30 });
+
+  // Test at timestamp after expiration
+  const expiredTime = session.expiresAt + 1000;
+  const result = verifyOtp(session, '741258', expiredTime);
+
+  assert.equal(result.success, false);
+  assert.equal(result.reason, 'EXPIRED_OTP');
+  assert.match(result.error || '', /Access denied: One-Time Password has expired/);
+});
+
+test('requestNewOtp: generates a fresh OTP session with renewed validity', () => {
+  const user = mockAccounts[0];
+  const initialSession = createOtpSession(user, { customCode: '111111', validitySeconds: 30 });
+  const freshSession = requestNewOtp(initialSession, { customCode: '222222', validitySeconds: 90 });
+
+  assert.notEqual(freshSession.sessionId, initialSession.sessionId);
+  assert.equal(freshSession.code, '222222');
+  assert.equal(freshSession.account.id, user.id);
+  assert.ok(freshSession.expiresAt > initialSession.expiresAt);
+
+  // Verifying old code against new session fails
+  const oldCodeCheck = verifyOtp(freshSession, '111111');
+  assert.equal(oldCodeCheck.success, false);
+  assert.equal(oldCodeCheck.reason, 'INVALID_OTP');
+
+  // Verifying new code succeeds
+  const newCodeCheck = verifyOtp(freshSession, '222222');
+  assert.equal(newCodeCheck.success, true);
+});
+
+test('createLoginRecord: records 2FA OTP outcome accurately', () => {
+  const user = mockAccounts[0];
+
+  // 1. Success with 2FA
+  const successRecord = createLoginRecord(user.username, 'Granted', {
+    account: user,
+    authFactor: 'Two-Factor (OTP)',
+    otpStatus: 'VERIFIED',
+  });
+  assert.equal(successRecord.status, 'Granted');
+  assert.equal(successRecord.authFactor, 'Two-Factor (OTP)');
+  assert.equal(successRecord.otpStatus, 'VERIFIED');
+
+  // 2. Denied due to invalid OTP
+  const invalidOtpRecord = createLoginRecord(user.username, 'Denied', {
+    account: user,
+    failureReason: 'Access Denied: Invalid One-Time Password entered for 2FA',
+    authFactor: 'Two-Factor (OTP)',
+    otpStatus: 'INVALID_OTP',
+  });
+  assert.equal(invalidOtpRecord.status, 'Denied');
+  assert.equal(invalidOtpRecord.otpStatus, 'INVALID_OTP');
+  assert.match(invalidOtpRecord.failureReason || '', /Invalid One-Time Password/);
+
+  // 3. Denied due to expired OTP
+  const expiredOtpRecord = createLoginRecord(user.username, 'Denied', {
+    account: user,
+    failureReason: 'Access Denied: One-Time Password expired for 2FA session',
+    authFactor: 'Two-Factor (OTP)',
+    otpStatus: 'EXPIRED_OTP',
+  });
+  assert.equal(expiredOtpRecord.status, 'Denied');
+  assert.equal(expiredOtpRecord.otpStatus, 'EXPIRED_OTP');
+  assert.match(expiredOtpRecord.failureReason || '', /expired/);
+});
+
+test('PRIMARY_REGISTERED_PHONE: is configured to +2348161759263', () => {
+  assert.equal(PRIMARY_REGISTERED_PHONE, '+2348161759263');
+});
+
+test('maskPhoneNumber: masks registered phone number accurately', () => {
+  const masked = maskPhoneNumber('+2348161759263');
+  assert.equal(masked, '+234 816 ••• 9263');
+  // Ensures middle digits are masked and not completely revealed
+  assert.ok(!masked.includes('175'));
+});
+
+test('getMaskedRecipient: returns masked phone by default or from user account', () => {
+  const userWithoutPhone = { ...mockAccounts[0], phone: undefined };
+  assert.equal(getMaskedRecipient(userWithoutPhone), '+234 816 ••• 9263');
+
+  const userWithPhone = { ...mockAccounts[0], phone: '+2348161759263' };
+  assert.equal(getMaskedRecipient(userWithPhone), '+234 816 ••• 9263');
+});
+
+test('dispatchOtpSms: dispatches SMS with secure message payload and 6-digit code', () => {
+  const result = dispatchOtpSms('+2348161759263', '492810', 'Olivia Chen');
+  assert.equal(result.recipient, '+2348161759263');
+  assert.equal(result.code, '492810');
+  assert.match(result.message, /492810/);
+  assert.match(result.message, /Excellence Academy/);
+  assert.equal(result.status, 'Delivered');
+});
+
+test('PRIMARY_REGISTERED_EMAIL: is configured to olivia.chen@excellence.edu', () => {
+  assert.equal(PRIMARY_REGISTERED_EMAIL, 'olivia.chen@excellence.edu');
+});
+
+test('maskEmailAddress: securely masks email address without exposing username', () => {
+  const masked1 = maskEmailAddress('olivia.chen@excellence.edu');
+  assert.match(masked1, /^o•+n@excellence\.edu$/);
+  // Ensures middle characters of name are hidden
+  assert.ok(!masked1.includes('livia'));
+
+  const masked2 = maskEmailAddress('omeakpotuanthonette@gmail.com');
+  assert.match(masked2, /^o•+e@gmail\.com$/);
+  assert.ok(!masked2.includes('anth'));
+
+  const maskedShort = maskEmailAddress('ab@excellence.edu');
+  assert.equal(maskedShort, 'a•b@excellence.edu');
+});
+
+test('getMaskedEmail: returns masked email from account or default', () => {
+  const user = mockAccounts[0]; // olivia.chen@excellence.edu
+  const masked = getMaskedEmail(user);
+  assert.match(masked, /^o•+n@excellence\.edu$/);
+
+  const fallback = getMaskedEmail();
+  assert.match(fallback, /^o•+n@excellence\.edu$/);
+});
+
+test('dispatchOtpEmail: dispatches email with academic 2FA message, subject and 6-digit code', () => {
+  const result = dispatchOtpEmail('olivia.chen@excellence.edu', '852963', 'Olivia Chen');
+  assert.equal(result.recipient, 'olivia.chen@excellence.edu');
+  assert.equal(result.code, '852963');
+  assert.equal(result.subject, 'Excellence Academy Security: 2FA One-Time Password');
+  assert.match(result.message, /852963/);
+  assert.match(result.message, /Excellence Academy/);
+  assert.equal(result.status, 'Delivered');
+});
+
+test('createOtpSession: initializes session with email channel and deliveryAddress', () => {
+  const user = mockAccounts[0];
+  const session = createOtpSession(user, {
+    channel: 'email',
+    deliveryAddress: 'olivia.chen@excellence.edu',
+  });
+
+  assert.equal(session.channel, 'email');
+  assert.equal(session.deliveryAddress, 'olivia.chen@excellence.edu');
+  assert.equal(session.code.length, 6);
+});
+
+test('createLoginRecord: records Email OTP 2FA factor accurately', () => {
+  const user = mockAccounts[0];
+
+  const emailGrantedRecord = createLoginRecord(user.username, 'Granted', {
+    account: user,
+    authFactor: 'Two-Factor (Email OTP)',
+    otpStatus: 'VERIFIED',
+  });
+  assert.equal(emailGrantedRecord.status, 'Granted');
+  assert.equal(emailGrantedRecord.authFactor, 'Two-Factor (Email OTP)');
+  assert.equal(emailGrantedRecord.otpStatus, 'VERIFIED');
+
+  const emailDeniedRecord = createLoginRecord(user.username, 'Denied', {
+    account: user,
+    failureReason: 'Access Denied: Invalid One-Time Password entered for 2FA (EMAIL)',
+    authFactor: 'Two-Factor (Email OTP)',
+    otpStatus: 'INVALID_OTP',
+  });
+  assert.equal(emailDeniedRecord.status, 'Denied');
+  assert.equal(emailDeniedRecord.authFactor, 'Two-Factor (Email OTP)');
+  assert.equal(emailDeniedRecord.otpStatus, 'INVALID_OTP');
+});
+
 
